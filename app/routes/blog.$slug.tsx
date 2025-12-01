@@ -5,20 +5,7 @@ import { urlFor } from "../lib/sanity";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
-import rehypeShiki from "@shikijs/rehype";
-import { defaultSchema } from "hast-util-sanitize";
 import { useMemo } from "react";
-
-const sanitizeSchema = {
-  ...defaultSchema,
-  attributes: {
-    ...(defaultSchema.attributes || {}),
-    code: [...(defaultSchema.attributes?.code || []), ["className"]],
-    pre: [...(defaultSchema.attributes?.pre || []), ["className"]],
-    span: [...(defaultSchema.attributes?.span || []), ["className"], ["style"]],
-  },
-};
-
 type Tag = {
   _id: string;
   title: string;
@@ -81,33 +68,62 @@ export async function loader({ params }: Route.LoaderArgs) {
 export function meta({ data }: Route.MetaArgs) {
   const post = data as Post | undefined;
   const title = post?.title ? `${post.title} · Blog` : "Blog Post";
-  const description = post?.excerpt?.trim() || "Read this blog post.";
-  const url = post?.slug ? `/blog/${post.slug}` : "/blog";
-  const image = post?.mainImage
+  const description = (post?.excerpt || "").trim() || "Read this blog post.";
+
+  // Build absolute canonical and image URLs when PUBLIC_SITE_URL is provided
+  const path = post?.slug ? `/blog/${post.slug}` : "/blog";
+  const site =
+    (typeof process !== "undefined" &&
+      (process as any).env &&
+      (process as any).env.PUBLIC_SITE_URL) ||
+    "";
+  const canonical = site ? new URL(path, site).toString() : path;
+
+  const rawImage = post?.mainImage
     ? urlFor(post.mainImage).width(1200).height(630).fit("crop").url()
     : undefined;
+  const ogImage =
+    rawImage && site ? new URL(rawImage, site).toString() : rawImage;
 
-  return [
+  const meta: any[] = [
     { title },
     { name: "description", content: description },
+    // Canonical
+    { tagName: "link", rel: "canonical", href: canonical },
     // Open Graph
     { property: "og:title", content: title },
     { property: "og:description", content: description },
     { property: "og:type", content: "article" },
-    { property: "og:url", content: url },
-    ...(image ? [{ property: "og:image", content: image }] : []),
+    { property: "og:url", content: canonical },
     // Twitter
     { name: "twitter:card", content: "summary_large_image" },
     { name: "twitter:title", content: title },
     { name: "twitter:description", content: description },
-    ...(image ? [{ name: "twitter:image", content: image }] : []),
-    // Canonical
-    { tagName: "link", rel: "canonical", href: url },
   ];
+
+  if (ogImage) {
+    meta.push({ property: "og:image", content: ogImage });
+    meta.push({ name: "twitter:image", content: ogImage });
+  }
+  if (post?.publishedAt) {
+    meta.push({
+      property: "article:published_time",
+      content: post.publishedAt,
+    });
+  }
+  if (post?.tags && post.tags.length) {
+    for (const t of post.tags) {
+      if (t?.title) {
+        meta.push({ property: "article:tag", content: t.title });
+      }
+    }
+  }
+
+  return meta;
 }
 
 export default function BlogPostRoute() {
-  const post = useLoaderData<typeof loader>();
+  const post: Post = useLoaderData<typeof loader>();
   const prettyDate = formatDate(post.publishedAt);
 
   const hero = useMemo(() => {
@@ -283,13 +299,7 @@ export default function BlogPostRoute() {
         {post.bodyMarkdown ? (
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
-            rehypePlugins={[
-              [
-                rehypeShiki,
-                { themes: { light: "github-light", dark: "github-dark" } },
-              ],
-              [rehypeSanitize, sanitizeSchema],
-            ]}
+            rehypePlugins={[rehypeSanitize]}
             components={mdComponents as any}
           >
             {post.bodyMarkdown}

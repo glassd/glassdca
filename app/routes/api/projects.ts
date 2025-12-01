@@ -15,9 +15,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   }`;
 
   try {
-    console.log("Fetching projects from Sanity...");
     const projects = await client.fetch(query);
-    console.log("Projects fetched:", JSON.stringify(projects, null, 2));
     return Response.json(projects);
   } catch (error) {
     console.error("Error fetching projects:", error);

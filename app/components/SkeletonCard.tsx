@@ -9,7 +9,11 @@ export interface SkeletonCardProps extends HTMLAttributes<HTMLElement> {
  * SkeletonCard
  * A shimmering placeholder for BlogCard while content loads.
  */
-export function SkeletonCard({ className = "", showImage = true, ...rest }: SkeletonCardProps) {
+export function SkeletonCard({
+  className = "",
+  showImage = true,
+  ...rest
+}: SkeletonCardProps) {
   return (
     <article
       aria-hidden="true"
@@ -18,7 +22,7 @@ export function SkeletonCard({ className = "", showImage = true, ...rest }: Skel
     >
       {showImage && (
         <div className="relative w-full h-48 overflow-hidden">
-          <div className="h-full w-full animate-pulse bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800" />
+          <div className="h-full w-full animate-pulse bg-linear-to-r from-gray-200 via-gray-100 to-gray-200 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800" />
         </div>
       )}
 
