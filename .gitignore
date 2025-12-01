@@ -1,6 +1,7 @@
 .DS_Store
 .env
 /node_modules/
+plan.md
 
 # React Router
 /.react-router/
