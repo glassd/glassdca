@@ -5,6 +5,7 @@ export default [
   route("about", "routes/about.tsx"),
   route("projects", "routes/projects.tsx"),
   route("blog", "routes/blog.tsx"),
+  route("blog/:slug", "routes/blog.$slug.tsx"),
   route("contact", "routes/contact.tsx"),
   route("api/projects", "routes/api/projects.ts"),
   route("api/blog", "routes/api/blog.ts"),

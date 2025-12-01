@@ -15,11 +15,17 @@
     "@sanity/preview-url-secret": "^3.0.0",
     "@sanity/react-loader": "^2.0.0",
     "@sanity/visual-editing": "^4.0.2",
+    "@shikijs/rehype": "^1.22.0",
     "isbot": "^5.1.31",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
+    "react-markdown": "^10.1.0",
     "react-router": "^7.9.2",
-    "sanity": "^4.18.0"
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
+    "sanity": "^4.18.0",
+    "shiki": "^1.22.0",
+    "hast-util-sanitize": "^5.0.1"
   },
   "devDependencies": {
     "@react-router/dev": "^7.9.2",

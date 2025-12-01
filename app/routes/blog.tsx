@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Route } from "./+types/blog";
 import { BlogCard } from "../components/BlogCard";
+import { TagChips } from "../components/TagChips";
+import { SkeletonCard } from "../components/SkeletonCard";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -164,7 +166,7 @@ export default function Blog() {
   };
 
   return (
-    <div className="container mx-auto px-4 py-12">
+    <div className="container mx-auto max-w-8xl px-4 py-12">
       <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">
         Blog
       </h1>
@@ -196,44 +198,27 @@ export default function Blog() {
 
       {/* Tag filters */}
       {availableTags.length > 0 && (
-        <div className="mb-6">
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Filter by tags
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {availableTags.map((t) => {
-              const checked = selectedTags.includes(t.slug);
-              return (
-                <label
-                  key={t._id}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm cursor-pointer transition ${
-                    checked
-                      ? "border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-200"
-                      : "border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={checked}
-                    onChange={() => toggleTag(t.slug)}
-                    aria-label={`Filter by ${t.title}`}
-                  />
-                  <span>#{t.title}</span>
-                </label>
-              );
-            })}
-          </div>
-        </div>
+        <TagChips
+          tags={availableTags}
+          selected={selectedTags}
+          onToggle={toggleTag}
+          onClear={clearFilters}
+          className="mb-6"
+          label="Filter by tags"
+        />
       )}
 
       {/* Content */}
       {initialLoading && posts.length === 0 ? (
-        <div className="text-gray-600 dark:text-gray-300">Loading posts…</div>
+        <div className="grid grid-cols-1 gap-8">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
       ) : posts.length === 0 ? (
         <div className="text-gray-600 dark:text-gray-300">No posts found.</div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-8">
           {posts.map((p) => (
             <BlogCard
               key={p._id}
