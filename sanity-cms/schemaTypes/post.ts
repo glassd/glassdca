@@ -45,6 +45,27 @@ export default defineType({
       type: 'datetime',
     }),
     defineField({
+      name: 'tags',
+      title: 'Tags',
+      type: 'array',
+      of: [{type: 'reference', to: [{type: 'tag'}]}],
+      options: {layout: 'tags'},
+    }),
+    defineField({
+      name: 'bodyMarkdown',
+      title: 'Body (Markdown)',
+      type: 'markdown',
+      description: 'GitHub-flavored Markdown. Drag-and-drop images to upload to Sanity.',
+    }),
+    defineField({
+      name: 'excerpt',
+      title: 'Excerpt (optional)',
+      type: 'text',
+      rows: 3,
+      description: 'Short summary for lists; if empty, a snippet will be generated.',
+    }),
+    // Legacy body retained for compatibility
+    defineField({
       name: 'body',
       title: 'Body',
       type: 'blockContent',

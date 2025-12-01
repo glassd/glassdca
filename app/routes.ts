@@ -7,4 +7,6 @@ export default [
   route("blog", "routes/blog.tsx"),
   route("contact", "routes/contact.tsx"),
   route("api/projects", "routes/api/projects.ts"),
+  route("api/blog", "routes/api/blog.ts"),
+  route("api/blog/tags", "routes/api/blog/tags.ts"),
 ] satisfies RouteConfig;
