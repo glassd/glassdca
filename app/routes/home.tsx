@@ -1,16 +1,29 @@
 import type { Route } from "./+types/home";
 
-
-export function meta({ }: Route.MetaArgs) {
+export function meta({}: Route.MetaArgs) {
   return [
     { title: "New React Router App" },
     { name: "description", content: "Welcome to React Router!" },
   ];
 }
 
-import { Link } from "react-router";
+export async function loader({ request }: Route.LoaderArgs) {
+  const url = new URL(request.url);
+  const apiUrl = new URL("/api/blog?offset=0&limit=3", url).toString();
+  const res = await fetch(apiUrl, { headers: { "Cache-Control": "no-store" } });
+  if (!res.ok) {
+    return Response.json({ posts: [] }, { status: 200 });
+  }
+  const data = await res.json();
+  return data;
+}
+
+import { Link, useLoaderData } from "react-router";
+import { BlogCard } from "../components/BlogCard";
 
 export default function Home() {
+  const data = useLoaderData<typeof loader>();
+  const posts = data?.posts ?? [];
   return (
     <div className="container mx-auto px-4 py-12">
       <section className="text-center mb-16">
@@ -41,33 +54,25 @@ export default function Home() {
           Recent Blog Posts
         </h2>
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {/* Placeholder for blog posts */}
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border border-gray-200 dark:border-gray-700"
-            >
-              <div className="h-48 bg-gray-200 dark:bg-gray-700"></div>
-              <div className="p-6">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-                  Blog Post Title {i}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-300 mb-4">
-                  A brief summary of the blog post goes here. It should be engaging and give a
-                  hint of what's inside.
-                </p>
-                <Link
-                  to={`/blog/post-${i}`}
-                  className="text-indigo-600 dark:text-indigo-400 hover:underline"
-                >
-                  Read more &rarr;
-                </Link>
-              </div>
-            </div>
+          {posts.map((p: any) => (
+            <BlogCard
+              key={p._id}
+              title={p.title}
+              slug={p.slug}
+              mainImage={p.mainImage}
+              tags={p.tags || []}
+              snippet={p.snippet}
+              publishedAt={p.publishedAt}
+            />
           ))}
         </div>
         <div className="text-center mt-8">
-          <Link to="/blog" className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline">View all posts</Link>
+          <Link
+            to="/blog"
+            className="text-indigo-600 dark:text-indigo-400 font-medium hover:underline"
+          >
+            View all posts
+          </Link>
         </div>
       </section>
     </div>

@@ -7,16 +7,14 @@ export type TagChip = {
   slug: string;
 };
 
-export interface TagChipsProps extends HTMLAttributes<HTMLFieldSetElement> {
+export interface TagChipsProps
+  extends Omit<HTMLAttributes<HTMLFieldSetElement>, "onToggle"> {
   tags: TagChip[];
   selected: string[];
   onToggle: (slug: string) => void;
   onClear?: () => void;
   label?: string;
   className?: string;
-  /**
-   * If true, renders the legend visually hidden (for tighter UIs)
-   */
   hideLabel?: boolean;
 }
 

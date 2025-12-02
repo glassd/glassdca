@@ -1,11 +1,12 @@
-import { useLoaderData } from "react-router";
+import { useLoaderData, useLocation } from "react-router";
 import type { Route } from "./+types/blog.$slug";
 import { client } from "../lib/sanity";
 import { urlFor } from "../lib/sanity";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
-import { useMemo } from "react";
+import { useMemo, useEffect, useState } from "react";
+import { TagChips } from "../components/TagChips";
 type Tag = {
   _id: string;
   title: string;
@@ -135,26 +136,141 @@ export default function BlogPostRoute() {
     }
   }, [post.mainImage]);
 
+  // Helpers for heading anchors and query param handling
+  const location = useLocation();
+  const initialParams = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search],
+  );
+
+  const [q, setQ] = useState<string>(initialParams.get("q") || "");
+  const [selectedTags, setSelectedTags] = useState<string[]>(
+    (initialParams.get("tags") || "").split(",").filter(Boolean),
+  );
+
+  const [availableTags, setAvailableTags] = useState<Tag[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/blog/tags`, {
+          headers: { "Cache-Control": "no-store" },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setAvailableTags(data || []);
+      } catch {}
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const backLink = useMemo(() => {
+    const p = new URLSearchParams();
+    if (q.trim()) p.set("q", q.trim());
+    if (selectedTags.length) p.set("tags", selectedTags.join(","));
+    const s = p.toString();
+    return s ? `/blog?${s}` : "/blog";
+  }, [q, selectedTags]);
+
+  const linkSuffix = useMemo(() => {
+    const p = new URLSearchParams();
+    if (q.trim()) p.set("q", q.trim());
+    if (selectedTags.length) p.set("tags", selectedTags.join(","));
+    const s = p.toString();
+    return s ? `?${s}` : "";
+  }, [q, selectedTags]);
+
+  function slugify(text: string) {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .trim()
+      .replace(/\s+/g, "-");
+  }
+  function extractText(node: any): string {
+    if (Array.isArray(node)) return node.map(extractText).join("");
+    if (typeof node === "string") return node;
+    if (node && typeof node === "object" && "props" in node) {
+      return extractText((node as any).props?.children);
+    }
+    return "";
+  }
+
+  type TocItem = { id: string; text: string; level: number };
+  const toc: TocItem[] = useMemo(() => {
+    const items: TocItem[] = [];
+    const md = post.bodyMarkdown || "";
+    for (const line of md.split("\n")) {
+      const m = line.match(/^(#{1,6})\s+(.*)$/);
+      if (m) {
+        const level = m[1].length;
+        const raw = m[2].replace(/#+\s*$/, "").trim();
+        if (!raw) continue;
+        items.push({ id: slugify(raw), text: raw, level });
+      }
+    }
+    return items;
+  }, [post.bodyMarkdown]);
+
+  const [readNext, setReadNext] = useState<Post[]>([]);
+  useEffect(() => {
+    const tagsForNext =
+      selectedTags.length > 0
+        ? selectedTags
+        : (post.tags || []).map((t) => t.slug);
+    const params = new URLSearchParams();
+    params.set("offset", "0");
+    params.set("limit", "5");
+    if (tagsForNext.length) params.set("tags", tagsForNext.join(","));
+    (async () => {
+      try {
+        const res = await fetch(`/api/blog?${params.toString()}`, {
+          headers: { "Cache-Control": "no-store" },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const list: Post[] = (data?.posts || []).filter(
+          (p: Post) => p.slug !== post.slug,
+        );
+        setReadNext(list);
+      } catch {}
+    })();
+  }, [post.slug, post.tags, selectedTags]);
+
   const mdComponents = useMemo(
     () => ({
-      h1: (props: any) => (
-        <h1
-          {...props}
-          className="mt-8 text-3xl font-bold text-gray-900 dark:text-white"
-        />
-      ),
-      h2: (props: any) => (
-        <h2
-          {...props}
-          className="mt-8 text-2xl font-semibold text-gray-900 dark:text-white"
-        />
-      ),
-      h3: (props: any) => (
-        <h3
-          {...props}
-          className="mt-6 text-xl font-semibold text-gray-900 dark:text-white"
-        />
-      ),
+      h1: (props: any) => {
+        const id = slugify(extractText(props.children || ""));
+        return (
+          <h1
+            {...props}
+            id={id || undefined}
+            className="mt-8 text-3xl font-bold text-gray-900 dark:text-white"
+          />
+        );
+      },
+      h2: (props: any) => {
+        const id = slugify(extractText(props.children || ""));
+        return (
+          <h2
+            {...props}
+            id={id || undefined}
+            className="mt-8 text-2xl font-semibold text-gray-900 dark:text-white"
+          />
+        );
+      },
+      h3: (props: any) => {
+        const id = slugify(extractText(props.children || ""));
+        return (
+          <h3
+            {...props}
+            id={id || undefined}
+            className="mt-6 text-xl font-semibold text-gray-900 dark:text-white"
+          />
+        );
+      },
       p: (props: any) => (
         <p
           {...props}
@@ -242,74 +358,164 @@ export default function BlogPostRoute() {
     <article className="container mx-auto max-w-8xl px-4 py-10">
       <nav className="mb-6 text-sm">
         <a
-          href="/blog"
+          href={backLink}
           className="inline-flex items-center text-indigo-600 hover:underline dark:text-indigo-400"
         >
           ← Back to Blog
         </a>
         <div className="mt-2 text-gray-500 dark:text-gray-400">
-          <a href="/blog" className="hover:underline">
+          <a href={backLink} className="hover:underline">
             Blog
           </a>
           <span className="mx-2">/</span>
           <span className="text-gray-700 dark:text-gray-300">{post.title}</span>
         </div>
       </nav>
-      {/* Title + meta */}
-      <header className="mb-8">
-        <h1 className="text-4xl font-bold leading-tight text-gray-900 dark:text-white">
-          {post.title}
-        </h1>
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
-          {prettyDate && (
-            <time className="text-gray-500 dark:text-gray-400">
-              {prettyDate}
-            </time>
-          )}
-          {post.tags && post.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {post.tags.map((t) => (
-                <a
-                  key={t._id}
-                  href={`/blog?tags=${encodeURIComponent(t.slug)}`}
-                  className="inline-flex items-center rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-                >
-                  #{t.title}
-                </a>
-              ))}
+      {/* Content + Sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-3">
+          {/* Title + meta */}
+          <header className="mb-8">
+            <h1 className="text-4xl font-bold leading-tight text-gray-900 dark:text-white">
+              {post.title}
+            </h1>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+              {prettyDate && (
+                <time className="text-gray-500 dark:text-gray-400">
+                  {prettyDate}
+                </time>
+              )}
+              {post.tags && post.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {post.tags.map((t) => (
+                    <a
+                      key={t._id}
+                      href={`/blog?tags=${encodeURIComponent(t.slug)}`}
+                      className="inline-flex items-center rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      #{t.title}
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </header>
+
+          {/* Hero image */}
+          {hero && (
+            <div className="mb-8 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
+              <img
+                src={hero}
+                alt={post.title}
+                className="h-auto w-full object-cover"
+                loading="eager"
+              />
             </div>
           )}
+          <section className="prose prose-indigo max-w-none dark:prose-invert">
+            {post.bodyMarkdown ? (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[rehypeSanitize]}
+                components={mdComponents as any}
+              >
+                {post.bodyMarkdown}
+              </ReactMarkdown>
+            ) : (
+              <p className="text-gray-700 dark:text-gray-300">
+                This post has no content yet.
+              </p>
+            )}
+          </section>
         </div>
-      </header>
+        <aside className="lg:col-span-1">
+          <div className="sticky top-24 space-y-8">
+            <div>
+              <label htmlFor="post-search" className="sr-only">
+                Search posts
+              </label>
+              <input
+                id="post-search"
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search posts..."
+                className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+              <a
+                href={backLink}
+                className="mt-2 inline-flex items-center text-sm text-indigo-600 hover:underline dark:text-indigo-400"
+              >
+                View results →
+              </a>
+            </div>
 
-      {/* Hero image */}
-      {hero && (
-        <div className="mb-8 overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
-          <img
-            src={hero}
-            alt={post.title}
-            className="h-auto w-full object-cover"
-            loading="eager"
-          />
-        </div>
-      )}
+            <div>
+              <TagChips
+                tags={availableTags}
+                selected={selectedTags}
+                onToggle={(slug) =>
+                  setSelectedTags((prev) =>
+                    prev.includes(slug)
+                      ? prev.filter((s) => s !== slug)
+                      : [...prev, slug],
+                  )
+                }
+                onClear={() => {
+                  setSelectedTags([]);
+                  setQ("");
+                }}
+                label="Filter by tags"
+              />
+            </div>
 
-      {/* Body */}
-      <section className="prose prose-indigo max-w-none dark:prose-invert">
-        {post.bodyMarkdown ? (
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[rehypeSanitize]}
-            components={mdComponents as any}
-          >
-            {post.bodyMarkdown}
-          </ReactMarkdown>
-        ) : (
-          <p className="text-gray-700 dark:text-gray-300">
-            This post has no content yet.
-          </p>
-        )}
-      </section>
+            {toc.length > 0 && (
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Table of contents
+                </h2>
+                <ul className="space-y-1 text-sm">
+                  {toc.map((item, idx) => (
+                    <li
+                      key={idx}
+                      style={{
+                        paddingLeft: `${Math.min(item.level - 1, 3) * 12}px`,
+                      }}
+                    >
+                      <a
+                        href={`#${item.id}`}
+                        className="text-gray-700 hover:text-indigo-600 dark:text-gray-300 dark:hover:text-indigo-400"
+                      >
+                        {item.text}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {readNext.length > 0 && (
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  Read next
+                </h2>
+                <ul className="space-y-2">
+                  {readNext.map((p) => (
+                    <li key={p._id}>
+                      <a
+                        href={`/blog/${p.slug}${linkSuffix}`}
+                        className="text-sm text-indigo-600 hover:underline dark:text-indigo-400"
+                      >
+                        {p.title}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
     </article>
   );
 }

@@ -89,6 +89,15 @@ export default function Blog() {
     return params.toString();
   }, [nextOffset, debouncedQ, selectedTags]);
 
+  // Preserve current filters/search in post links so they carry to the detail view
+  const linkSuffix = useMemo(() => {
+    const p = new URLSearchParams();
+    if (debouncedQ) p.set("q", debouncedQ);
+    if (selectedTags.length > 0) p.set("tags", selectedTags.join(","));
+    const s = p.toString();
+    return s ? `?${s}` : "";
+  }, [debouncedQ, selectedTags]);
+
   // Load a page of posts
   const loadMore = async () => {
     if (loading || !hasMore) return;
@@ -171,83 +180,90 @@ export default function Blog() {
         Blog
       </h1>
 
-      {/* Controls */}
-      <div className="mb-6 flex flex-col md:flex-row gap-4 md:items-center">
-        <div className="flex-1">
-          <label htmlFor="blog-search" className="sr-only">
-            Search posts
-          </label>
-          <input
-            id="blog-search"
-            type="text"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search posts..."
-            className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-          />
+      {/* Layout: main content + right sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+        <div className="lg:col-span-3">
+          {/* Content */}
+          {initialLoading && posts.length === 0 ? (
+            <div className="grid grid-cols-1 gap-8">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <SkeletonCard key={i} />
+              ))}
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="text-gray-600 dark:text-gray-300">
+              No posts found.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-8">
+              {posts.map((p) => (
+                <BlogCard
+                  key={p._id}
+                  title={p.title}
+                  slug={`${p.slug}${linkSuffix}`}
+                  mainImage={p.mainImage}
+                  tags={p.tags || []}
+                  snippet={p.snippet}
+                  publishedAt={p.publishedAt}
+                />
+              ))}
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-4 text-sm text-red-600 dark:text-red-400">
+              Error loading posts: {error}
+            </div>
+          )}
+
+          {/* Sentinel for infinite scroll */}
+          <div ref={sentinelRef} className="h-10" />
+
+          {/* Loading indicator at bottom */}
+          {loading && posts.length > 0 && (
+            <div className="mt-4 text-gray-600 dark:text-gray-300">
+              Loading more…
+            </div>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={clearFilters}
-          className="self-start md:self-auto inline-flex items-center rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-        >
-          Clear
-        </button>
+        {/* Sidebar */}
+        <aside className="lg:col-span-1">
+          <div className="sticky top-24 space-y-6">
+            <div>
+              <label htmlFor="blog-search" className="sr-only">
+                Search posts
+              </label>
+              <input
+                id="blog-search"
+                type="text"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search posts..."
+                className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            {availableTags.length > 0 && (
+              <TagChips
+                tags={availableTags}
+                selected={selectedTags}
+                onToggle={toggleTag}
+                onClear={clearFilters}
+                label="Filter by tags"
+              />
+            )}
+
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex items-center rounded-md border border-gray-300 dark:border-gray-700 px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+            >
+              Clear
+            </button>
+          </div>
+        </aside>
       </div>
-
-      {/* Tag filters */}
-      {availableTags.length > 0 && (
-        <TagChips
-          tags={availableTags}
-          selected={selectedTags}
-          onToggle={toggleTag}
-          onClear={clearFilters}
-          className="mb-6"
-          label="Filter by tags"
-        />
-      )}
-
-      {/* Content */}
-      {initialLoading && posts.length === 0 ? (
-        <div className="grid grid-cols-1 gap-8">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      ) : posts.length === 0 ? (
-        <div className="text-gray-600 dark:text-gray-300">No posts found.</div>
-      ) : (
-        <div className="grid grid-cols-1 gap-8">
-          {posts.map((p) => (
-            <BlogCard
-              key={p._id}
-              title={p.title}
-              slug={p.slug}
-              mainImage={p.mainImage}
-              tags={p.tags || []}
-              snippet={p.snippet}
-              publishedAt={p.publishedAt}
-            />
-          ))}
-        </div>
-      )}
-
-      {error && (
-        <div className="mt-4 text-sm text-red-600 dark:text-red-400">
-          Error loading posts: {error}
-        </div>
-      )}
-
-      {/* Sentinel for infinite scroll */}
-      <div ref={sentinelRef} className="h-10" />
-
-      {/* Loading indicator at bottom */}
-      {loading && posts.length > 0 && (
-        <div className="mt-4 text-gray-600 dark:text-gray-300">
-          Loading more…
-        </div>
-      )}
     </div>
   );
 }

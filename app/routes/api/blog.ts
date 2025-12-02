@@ -92,8 +92,6 @@ export async function loader({ request }: Route.LoaderArgs) {
 
   const countQuery = `count(*[${where}])`;
 
-  console.log(listQuery);
-
   try {
     const [posts, total] = await Promise.all([
       client.fetch<any[]>(listQuery, params),
