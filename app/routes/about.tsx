@@ -63,7 +63,7 @@ export default function About() {
           grows.
         </p>
         <p className="text-lg text-gray-600 dark:text-gray-300">
-          I’m especially interested in AI at the moment—how it can actually be
+          I’m especially interested in AI at the moment, how it can actually be
           useful, where it goes off the rails, and what it means for the way we
           work and live. I’ll be sharing my own experiments and thoughts as I
           go, the good and the bad.
