@@ -20,7 +20,7 @@ export function Navbar() {
                 className="flex items-center space-x-2 text-xl font-bold text-gray-900 dark:text-white"
               >
                 <img
-                  src="/logo.png"
+                  src="/logo.svg"
                   alt="Glass D. Logo"
                   className="h-8 w-8 rounded-full"
                 />
