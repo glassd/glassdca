@@ -32,7 +32,12 @@ export async function action({
   request,
 }: Route.ActionArgs): Promise<ActionData | Response> {
   const now = Date.now();
+  const reqId = Math.random().toString(36).slice(2, 8);
+
+  console.log(`[contact:${reqId}] action start at ${now}`);
+
   const form = await request.formData();
+  console.log(`[contact:${reqId}] raw formData keys:`, Array.from(form.keys()));
 
   // Form fields
   const email = String(form.get("email") || "").trim();
@@ -41,18 +46,51 @@ export async function action({
 
   // Honeypot + timing
   const company = String(form.get("company") || "").trim(); // honeypot field - should be blank
-  const startedAt = Number(form.get("startedAt") || "0");
+  const startedAtRaw = String(form.get("startedAt") || "0");
+  const startedAt = Number(startedAtRaw);
+
+  console.log(`[contact:${reqId}] parsed fields`, {
+    email,
+    subjectLength: subject.length,
+    messageLength: message.length,
+    company,
+    startedAtRaw,
+    startedAt,
+    now,
+    deltaMs: now - startedAt,
+  });
 
   // Optional origin hardening (if PUBLIC_SITE_URL is set)
-  if (!originAllowed(request, (process as any)?.env?.PUBLIC_SITE_URL)) {
+  const publicSiteUrl = (process as any)?.env?.PUBLIC_SITE_URL;
+  if (!originAllowed(request, publicSiteUrl)) {
+    console.warn(`[contact:${reqId}] origin not allowed`, {
+      publicSiteUrl,
+      origin: request.headers.get("origin"),
+      referer: request.headers.get("referer"),
+    });
     return { errors: { general: "Unable to process request." } };
   }
 
   // Honeypot trap and basic bot signals
-  if (company || looksLikeBot(request)) {
+  if (company) {
+    console.warn(
+      `[contact:${reqId}] honeypot triggered (company field not empty)`,
+    );
     return { errors: { general: "Unable to process request." } };
   }
+  if (looksLikeBot(request)) {
+    console.warn(`[contact:${reqId}] looksLikeBot returned true`, {
+      ua: request.headers.get("user-agent"),
+    });
+    return { errors: { general: "Unable to process request." } };
+  }
+
   if (isTooFast(now, startedAt)) {
+    console.warn(`[contact:${reqId}] isTooFast triggered`, {
+      now,
+      startedAt,
+      deltaMs: now - startedAt,
+    });
     return {
       errors: { general: "Form submitted too quickly. Please try again." },
     };
@@ -73,12 +111,21 @@ export async function action({
   } else if (message.length > 5000) {
     errors.message = "Message is too long (max 5000 chars).";
   }
-  if (Object.keys(errors).length) return { errors };
+  if (Object.keys(errors).length) {
+    console.warn(`[contact:${reqId}] validation failed`, { errors });
+    return { errors };
+  }
 
   // Abuse protections: rate limit + duplicate throttle
   const ip = getClientIp(request);
+  console.log(`[contact:${reqId}] client IP`, { ip });
+
   const rl = rateLimit(ip, now);
   if (!rl.ok) {
+    console.warn(`[contact:${reqId}] rateLimit exceeded`, {
+      ip,
+      retryAfterMs: rl.retryAfterMs,
+    });
     return {
       errors: { general: "Too many requests. Please try again later." },
     };
@@ -86,6 +133,10 @@ export async function action({
   const contentHash = hashContent(`${email}|${subject}|${message}`);
   const dup = throttleDuplicates(ip, now, contentHash);
   if (!dup.ok) {
+    console.warn(`[contact:${reqId}] duplicate submission detected`, {
+      ip,
+      contentHash,
+    });
     return {
       errors: {
         general:
@@ -95,14 +146,32 @@ export async function action({
   }
 
   // Send email via SMTP relay (no auth)
+  console.log(`[contact:${reqId}] passing abuse checks, about to send email`, {
+    email,
+    subject,
+    messageLength: message.length,
+  });
+
+  const sendStart = Date.now();
   try {
     await sendContactEmail({ fromEmail: email, subject, text: message });
+    const sendDuration = Date.now() - sendStart;
+    console.log(
+      `[contact:${reqId}] sendContactEmail succeeded in ${sendDuration}ms`,
+    );
     return new Response(null, {
       status: 303,
       headers: { Location: "/contact/sent" },
     });
   } catch (e: any) {
-    console.error("[contact] email send failed:", e?.message || e);
+    const sendDuration = Date.now() - sendStart;
+    console.error(
+      `[contact:${reqId}] sendContactEmail FAILED after ${sendDuration}ms`,
+      {
+        errorMessage: e?.message || e,
+        stack: e?.stack,
+      },
+    );
     return {
       errors: {
         general:

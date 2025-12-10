@@ -130,6 +130,26 @@ export async function sendContactEmail({
   const BCC = process.env.CONTACT_BCC_EMAIL;
   const SUBJECT_PREFIX = process.env.CONTACT_SUBJECT_PREFIX || "[Contact]";
 
+  const host = process.env.SMTP_HOST;
+  const port = Number(process.env.SMTP_PORT);
+  const secure =
+    String(process.env.SMTP_SECURE || "").toLowerCase() === "true" ||
+    port === 465;
+
+  console.log("[email] sendContactEmail start", {
+    TO,
+    FROM,
+    BCC,
+    SUBJECT_PREFIX,
+    SMTP_HOST: host,
+    SMTP_PORT: port,
+    SMTP_SECURE: secure,
+    fromEmail,
+    subject,
+    textLength: text?.length ?? 0,
+    hasHtml: !!html,
+  });
+
   const transporter = createTransport();
 
   const replyTo = sanitizeEmailAddress(fromEmail);
@@ -142,18 +162,36 @@ export async function sendContactEmail({
       ? html.slice(0, 50000)
       : undefined;
 
-  const info = await transporter.sendMail({
-    from: sanitizeHeaderValue(FROM),
-    to: sanitizeHeaderValue(TO),
-    ...(BCC ? { bcc: sanitizeHeaderValue(BCC) } : {}),
-    subject: finalSubject,
-    text: `From: ${replyTo}\n\n${safeText}`,
-    ...(safeHtml ? { html: safeHtml } : {}),
-    replyTo,
-    headers: {
-      "X-Contact-Form": "true",
-    },
-  });
+  const start = Date.now();
+  try {
+    const info = await transporter.sendMail({
+      from: sanitizeHeaderValue(FROM),
+      to: sanitizeHeaderValue(TO),
+      ...(BCC ? { bcc: sanitizeHeaderValue(BCC) } : {}),
+      subject: finalSubject,
+      text: `From: ${replyTo}\n\n${safeText}`,
+      ...(safeHtml ? { html: safeHtml } : {}),
+      replyTo,
+      headers: {
+        "X-Contact-Form": "true",
+      },
+    });
 
-  return { ok: true as const, id: info.messageId };
+    console.log("[email] sendContactEmail success", {
+      durationMs: Date.now() - start,
+      messageId: info.messageId,
+      response: (info as any)?.response,
+    });
+
+    return { ok: true as const, id: info.messageId };
+  } catch (err: any) {
+    console.error("[email] sendContactEmail error", {
+      durationMs: Date.now() - start,
+      errorMessage: err?.message || String(err),
+      code: err?.code,
+      command: err?.command,
+      stack: err?.stack,
+    });
+    throw err;
+  }
 }
